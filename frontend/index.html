@@ -1,21 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="nb">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Feedback &amp; Roadmap</title>
+    <title>Tilbakemeldinger &amp; veikart</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <header class="site-header">
       <div class="wrap header-inner">
-        <h1>Feedback &amp; Roadmap</h1>
+        <h1>Tilbakemeldinger &amp; veikart</h1>
         <nav class="auth-nav">
-          <span id="userEmail" class="user-email" hidden></span>
-          <button id="myCasesBtn" class="btn ghost" hidden>My cases</button>
-          <button id="signInBtn" class="btn ghost">Sign in</button>
-          <button id="signOutBtn" class="btn ghost" hidden>Sign out</button>
-          <button id="newBtn" class="btn primary">Submit feedback</button>
+          <button id="newBtn" class="btn primary">Send tilbakemelding</button>
         </nav>
       </div>
     </header>
@@ -23,101 +19,84 @@
     <main class="wrap">
       <!-- Filter / search bar -->
       <section class="toolbar">
-        <input id="search" class="search" type="search" placeholder="Search feedback…" />
+        <input id="search" class="search" type="search" placeholder="Søk i tilbakemeldinger…" />
         <div id="labelFilters" class="chips"></div>
         <label class="closed-toggle">
-          <input type="checkbox" id="showClosed" /> Show closed
+          <input type="checkbox" id="showClosed" /> Vis lukkede
         </label>
       </section>
 
       <!-- Roadmap columns -->
       <section class="board" id="board">
         <div class="column" data-status="triage">
-          <h2>Triage</h2>
+          <h2>Til vurdering</h2>
           <div class="cards" data-col="triage"></div>
         </div>
         <div class="column" data-status="planned">
-          <h2>Planned</h2>
+          <h2>Planlagt</h2>
           <div class="cards" data-col="planned"></div>
         </div>
         <div class="column" data-status="in-progress">
-          <h2>In progress</h2>
+          <h2>Under arbeid</h2>
           <div class="cards" data-col="in-progress"></div>
         </div>
         <div class="column" data-status="done">
-          <h2>Done</h2>
+          <h2>Ferdig</h2>
           <div class="cards" data-col="done"></div>
         </div>
       </section>
 
-      <p id="loadState" class="load-state">Loading feedback…</p>
+      <p id="loadState" class="load-state">Laster tilbakemeldinger…</p>
     </main>
+
+    <!-- Detail modal (public issue + updates) -->
+    <dialog id="detailDialog" class="dialog dialog-wide">
+      <div>
+        <div id="detailBody"></div>
+        <div class="dialog-actions">
+          <button type="button" class="btn ghost" data-close>Lukk</button>
+        </div>
+      </div>
+    </dialog>
 
     <!-- Submit feedback modal -->
     <dialog id="feedbackDialog" class="dialog">
       <form id="feedbackForm" method="dialog">
-        <h2>Submit feedback</h2>
+        <h2>Send tilbakemelding</h2>
         <label>Type
           <select name="type">
-            <option value="feature">Feature request</option>
-            <option value="bug">Bug</option>
-            <option value="other">Other</option>
+            <option value="feature">Funksjonsønske</option>
+            <option value="bug">Feil</option>
+            <option value="other">Annet</option>
           </select>
         </label>
-        <label>Title
-          <input name="title" required maxlength="250" placeholder="Short summary" />
+        <label>Tittel
+          <input name="title" required maxlength="250" placeholder="Kort oppsummering" />
         </label>
-        <label>Details
-          <textarea name="body" rows="5" placeholder="What happened / what you'd like"></textarea>
+        <label>Detaljer
+          <textarea name="body" rows="5" placeholder="Hva skjedde / hva ønsker du deg"></textarea>
         </label>
-        <label>Your email
-          <input name="email" type="email" required placeholder="you@example.com" />
-          <small>Kept private. Used only to reply to you and let you track this case.</small>
+        <label>E-posten din
+          <input name="email" type="email" required placeholder="deg@eksempel.no" />
+          <small>Holdes privat. Brukes kun til å svare deg og la deg følge saken.</small>
         </label>
         <fieldset class="visibility">
-          <legend>Visibility</legend>
+          <legend>Synlighet</legend>
           <label class="radio">
             <input type="radio" name="visibility" value="public" checked />
-            <span><strong>Public</strong> — show on the roadmap so others can see and upvote it</span>
+            <span><strong>Offentlig</strong> — vises på veikartet så andre kan se og stemme på den</span>
           </label>
           <label class="radio">
             <input type="radio" name="visibility" value="private" />
-            <span><strong>Private</strong> — only you and the team can see it</span>
+            <span><strong>Privat</strong> — kun du og teamet kan se den</span>
           </label>
         </fieldset>
         <div class="dialog-actions">
-          <button type="button" class="btn ghost" data-close>Cancel</button>
-          <button type="submit" class="btn primary">Submit</button>
+          <button type="button" class="btn ghost" data-close>Avbryt</button>
+          <button type="submit" class="btn primary">Send inn</button>
         </div>
         <p class="form-msg" id="feedbackMsg"></p>
       </form>
-    </dialog>
-
-    <!-- Sign-in modal -->
-    <dialog id="signInDialog" class="dialog">
-      <form id="signInForm" method="dialog">
-        <h2>Sign in</h2>
-        <p>We'll email you a magic link — no password needed.</p>
-        <label>Email
-          <input name="email" type="email" required placeholder="you@example.com" />
-        </label>
-        <div class="dialog-actions">
-          <button type="button" class="btn ghost" data-close>Cancel</button>
-          <button type="submit" class="btn primary">Send link</button>
-        </div>
-        <p class="form-msg" id="signInMsg"></p>
-      </form>
-    </dialog>
-
-    <!-- My cases modal -->
-    <dialog id="casesDialog" class="dialog">
-      <div>
-        <h2>My cases</h2>
-        <ul id="casesList" class="cases-list"></ul>
-        <div class="dialog-actions">
-          <button type="button" class="btn ghost" data-close>Close</button>
-        </div>
-      </div>
     </dialog>
 
     <script src="config.js"></script>

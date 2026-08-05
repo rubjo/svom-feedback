@@ -3,6 +3,14 @@ const { BACKEND_URL } = window.FT_CONFIG;
 // Maps a "status:*" label to a board column. Anything without one → triage.
 const STATUS_COLUMNS = ['triage', 'planned', 'in-progress', 'done'];
 
+// Norwegian display names for statuses (used in badges/detail).
+const STATUS_LABELS = {
+  triage: 'Til vurdering',
+  planned: 'Planlagt',
+  'in-progress': 'Under arbeid',
+  done: 'Ferdig',
+};
+
 const state = {
   issues: [],
   activeLabels: new Set(),
@@ -20,6 +28,12 @@ async function fetchIssues() {
   return issues;
 }
 
+async function fetchIssueDetail(number) {
+  const res = await fetch(`${BACKEND_URL}/api/issues/${number}`);
+  if (!res.ok) throw new Error(`Backend /api/issues/${number} ${res.status}`);
+  return res.json();
+}
+
 function statusOf(issue) {
   const s = issue.labels
     .map((l) => l.name)
@@ -28,10 +42,6 @@ function statusOf(issue) {
   if (!s) return 'triage';
   const key = s.replace('status:', '');
   return STATUS_COLUMNS.includes(key) ? key : 'triage';
-}
-
-function reactionCount(issue) {
-  return (issue.reactions && issue.reactions.up) || 0;
 }
 
 // ── Rendering ─────────────────────────────────────────────────────────
@@ -84,21 +94,23 @@ function matchesFilters(issue) {
 }
 
 function card(issue) {
-  const el = document.createElement('div');
+  const el = document.createElement('button');
   el.className = 'card';
+  el.type = 'button';
+  el.setAttribute('aria-label', `Åpne sak: ${issue.title}`);
+  el.onclick = () => openDetail(issue.number);
 
-  const votes = reactionCount(issue);
   const chips = issue.labels
     .filter((l) => !isInternalLabel(l.name))
     .map((l) => `<span class="tag" style="--chip:#${l.color || '888'}">${escapeHtml(l.name)}</span>`)
     .join('');
 
+  const commentWord = issue.comments === 1 ? 'kommentar' : 'kommentarer';
   el.innerHTML = `
-    <div class="card-vote" title="Reactions">▲ ${votes}</div>
     <div class="card-main">
       <h3>${escapeHtml(issue.title)}</h3>
       <div class="tags">${chips}</div>
-      <div class="card-meta">#${issue.number} · ${issue.comments} comments</div>
+      <div class="card-meta">#${issue.number} · ${issue.comments} ${commentWord}</div>
     </div>`;
   return el;
 }
@@ -109,8 +121,6 @@ function render() {
     document.querySelector(`[data-col="${col}"]`).innerHTML = '';
   }
   const visible = state.issues.filter(matchesFilters);
-  // Sort each column by reaction count desc so popular items surface.
-  visible.sort((a, b) => reactionCount(b) - reactionCount(a));
   for (const issue of visible) {
     const col = document.querySelector(`[data-col="${statusOf(issue)}"]`);
     if (col) col.appendChild(card(issue));
@@ -122,39 +132,81 @@ function escapeHtml(s = '') {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// ── Auth + submissions (via Railway backend) ──────────────────────────
+// Very small, safe formatter: escape, then turn line breaks into <br>.
+function formatBody(s = '') {
+  return escapeHtml(s).replace(/\n/g, '<br>');
+}
+
+function formatDate(iso) {
+  try {
+    return new Date(iso).toLocaleDateString('nb-NO', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  } catch {
+    return '';
+  }
+}
+
+// ── Detail modal ──────────────────────────────────────────────────────
+async function openDetail(number) {
+  const dlg = document.getElementById('detailDialog');
+  const body = document.getElementById('detailBody');
+  body.innerHTML = '<p class="load-state">Laster sak…</p>';
+  dlg.showModal();
+  try {
+    const { issue, comments } = await fetchIssueDetail(number);
+    const status = issue.state === 'closed' ? 'done' : statusOf(issue);
+    const chips = issue.labels
+      .filter((l) => !isInternalLabel(l.name))
+      .map((l) => `<span class="tag" style="--chip:#${l.color || '888'}">${escapeHtml(l.name)}</span>`)
+      .join('');
+
+    const commentsHtml = comments.length
+      ? comments
+          .map(
+            (c) => `
+            <div class="comment">
+              <div class="comment-head">
+                ${c.author_avatar ? `<img class="avatar" src="${c.author_avatar}" alt="" />` : ''}
+                <strong>${escapeHtml(c.author)}</strong>
+                <span class="comment-date">${formatDate(c.created_at)}</span>
+              </div>
+              <div class="comment-body">${formatBody(c.body)}</div>
+            </div>`
+          )
+          .join('')
+      : '<p class="muted">Ingen oppdateringer ennå.</p>';
+
+    body.innerHTML = `
+      <div class="detail-head">
+        <span class="badge badge-${status}">${STATUS_LABELS[status]}</span>
+      </div>
+      <h2 class="detail-title">${escapeHtml(issue.title)}</h2>
+      <div class="tags">${chips}</div>
+      <div class="detail-desc">${formatBody(issue.body || '')}</div>
+      <h3 class="detail-sub">Oppdateringer</h3>
+      <div class="comments">${commentsHtml}</div>
+    `;
+  } catch (err) {
+    console.error(err);
+    body.innerHTML = '<p class="muted">Kunne ikke laste saken. Prøv igjen senere.</p>';
+  }
+}
+
+// ── Submissions (via Railway backend) ─────────────────────────────────
 async function api(path, opts = {}) {
-  const res = await fetch(`${BACKEND_URL}${path}`, {
-    credentials: 'include',
+  return fetch(`${BACKEND_URL}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...opts,
   });
-  return res;
-}
-
-async function refreshAuth() {
-  try {
-    const res = await api('/api/me');
-    const signedIn = res.ok;
-    const data = signedIn ? await res.json() : {};
-    document.getElementById('signInBtn').hidden = signedIn;
-    document.getElementById('signOutBtn').hidden = !signedIn;
-    document.getElementById('myCasesBtn').hidden = !signedIn;
-    const emailEl = document.getElementById('userEmail');
-    emailEl.hidden = !signedIn;
-    emailEl.textContent = data.email || '';
-  } catch {
-    /* backend not reachable; public board still works */
-  }
 }
 
 function wireUI() {
   const fd = document.getElementById('feedbackDialog');
-  const sd = document.getElementById('signInDialog');
-  const cd = document.getElementById('casesDialog');
 
   document.getElementById('newBtn').onclick = () => fd.showModal();
-  document.getElementById('signInBtn').onclick = () => sd.showModal();
   document.querySelectorAll('[data-close]').forEach((b) => {
     b.onclick = () => b.closest('dialog').close();
   });
@@ -173,7 +225,7 @@ function wireUI() {
     e.preventDefault();
     const form = e.target;
     const msg = document.getElementById('feedbackMsg');
-    msg.textContent = 'Submitting…';
+    msg.textContent = 'Sender inn…';
     const payload = {
       type: form.type.value,
       title: form.title.value,
@@ -187,62 +239,34 @@ function wireUI() {
     });
     if (res.ok) {
       const data = await res.json();
-      const vis = data.visibility === 'private' ? ' (private)' : '';
-      msg.textContent = `Thanks! Filed as #${data.issue_number}${vis}.`;
+      showFeedbackConfirmation(data);
       form.reset();
-      setTimeout(() => fd.close(), 1500);
-      setTimeout(load, 2000);
+      setTimeout(load, 2000); // refresh the board so a new public item appears
     } else {
-      msg.textContent = 'Something went wrong. Please try again.';
+      msg.textContent = 'Noe gikk galt. Prøv igjen.';
     }
   });
+}
 
-  // Request magic link
-  document.getElementById('signInForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const msg = document.getElementById('signInMsg');
-    msg.textContent = 'Sending…';
-    const res = await api('/api/auth/request', {
-      method: 'POST',
-      body: JSON.stringify({ email: e.target.email.value }),
-    });
-    msg.textContent = res.ok
-      ? 'Check your email for a sign-in link.'
-      : 'Could not send link.';
-  });
+// Replaces the form with a friendly confirmation. Copy differs by visibility,
+// since private submissions are the ones that get a personal reply by email.
+function showFeedbackConfirmation({ issue_number, visibility }) {
+  const dialog = document.getElementById('feedbackDialog');
+  const isPrivate = visibility === 'private';
+  const message = isPrivate
+    ? `Saken din er registrert som <strong>#${issue_number}</strong>. Vi tar kontakt på e-posten du oppga så snart vi kan.`
+    : `Forslaget ditt er registrert som <strong>#${issue_number}</strong> og vises nå på veikartet. Der kan du følge med på status.`;
 
-  // Sign out
-  document.getElementById('signOutBtn').onclick = async () => {
-    await api('/api/auth/logout', { method: 'POST' });
-    refreshAuth();
-  };
-
-  // My cases
-  document.getElementById('myCasesBtn').onclick = async () => {
-    const list = document.getElementById('casesList');
-    list.innerHTML = '<li>Loading…</li>';
-    cd.showModal();
-    const res = await api('/api/my-cases');
-    if (!res.ok) {
-      list.innerHTML = '<li>Please sign in again.</li>';
-      return;
-    }
-    const { cases } = await res.json();
-    list.innerHTML = cases.length
-      ? cases
-          .map(
-            (c) =>
-              `<li>
-                 <div class="case-title">#${c.issue_number} — ${escapeHtml(c.title)}</div>
-                 <div class="case-meta">
-                   <span class="badge badge-${c.status}">${c.status.replace('-', ' ')}</span>
-                   <span class="badge badge-vis">${c.visibility}</span>
-                 </div>
-               </li>`
-          )
-          .join('')
-      : '<li>No cases yet.</li>';
-  };
+  dialog.innerHTML = `
+    <div class="confirmation">
+      <div class="confirmation-check" aria-hidden="true">✓</div>
+      <h2>Takk for tilbakemeldingen!</h2>
+      <p>${message}</p>
+      <div class="dialog-actions">
+        <button type="button" class="btn primary" id="confirmCloseBtn">Lukk</button>
+      </div>
+    </div>`;
+  document.getElementById('confirmCloseBtn').onclick = () => location.reload();
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────
@@ -252,19 +276,10 @@ async function load() {
     render();
   } catch (err) {
     document.getElementById('loadState').textContent =
-      'Could not load feedback from GitHub.';
+      'Kunne ikke laste tilbakemeldinger.';
     console.error(err);
   }
 }
 
-function showAuthToast() {
-  const p = new URLSearchParams(location.search).get('auth');
-  if (p === 'ok') alert('Signed in! Click "My cases" to see your submissions.');
-  if (p === 'invalid') alert('That sign-in link was invalid or expired.');
-  if (p) history.replaceState({}, '', location.pathname);
-}
-
 wireUI();
-showAuthToast();
-refreshAuth();
 load();
