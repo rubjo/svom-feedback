@@ -255,7 +255,7 @@ function showFeedbackConfirmation({ issue_number, visibility }) {
   const isPrivate = visibility === 'private';
   const message = isPrivate
     ? `Saken din er registrert som <strong>#${issue_number}</strong>. Vi tar kontakt på e-posten du oppga så snart vi kan.`
-    : `Forslaget ditt er registrert som <strong>#${issue_number}</strong> og vises nå på veikartet. Der kan du følge med på status.`;
+    : `Forslaget ditt er registrert som <strong>#${issue_number}</strong> og er nå synlig for alle. Der kan du følge med på status.`;
 
   dialog.innerHTML = `
     <div class="confirmation">
