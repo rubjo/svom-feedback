@@ -3,5 +3,5 @@
 // repo is private and can't be read from the browser directly.
 window.FT_CONFIG = {
   // Your Railway backend URL (no trailing slash):
-  BACKEND_URL: 'https://your-backend.up.railway.app',
+  BACKEND_URL: 'https://svom-issues-production.up.railway.app',
 };
