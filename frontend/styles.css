@@ -207,3 +207,24 @@ body {
 .comment-head .avatar { width: 20px; height: 20px; border-radius: 50%; }
 .comment-date { color: var(--muted); font-size: 12px; }
 .comment-body { line-height: 1.55; }
+
+/* Footer links (all pages) */
+.site-footer {
+  display: flex; flex-wrap: wrap; gap: 18px; justify-content: center;
+  margin-top: 40px; padding: 20px; border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.site-footer a { color: var(--muted); text-decoration: none; }
+.site-footer a:hover { color: var(--text); }
+
+/* Terms / privacy pages */
+.home-link { color: inherit; text-decoration: none; }
+a.btn { text-decoration: none; display: inline-block; }
+.legal { max-width: 720px; padding-top: 24px; }
+.legal article + article { margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--border); }
+.legal h2 { font-size: 24px; margin: 0 0 4px; }
+.legal h3 { font-size: 16px; margin: 28px 0 8px; }
+.legal p, .legal li { line-height: 1.65; }
+.legal ul { padding-left: 20px; }
+.legal li { margin-bottom: 6px; }
+.legal a { color: var(--accent); }
